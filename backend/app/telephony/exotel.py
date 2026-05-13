@@ -15,6 +15,7 @@ import json
 import logging
 import struct
 import io
+import aiohttp
 from typing import Optional
 from fastapi import WebSocket
 
@@ -72,30 +73,34 @@ class ExotelCallSession:
     async def handle_message(self, data: dict):
         """Route incoming Exotel WebSocket messages"""
         event = data.get("event")
+        logger.info(f"📞 Exotel event: {event}")
 
-        if event == "connected":
-            logger.info("📞 Exotel WebSocket connected")
-            self.is_active = True
+        try:
+            if event == "connected":
+                logger.info("📞 Exotel WebSocket connected")
+                self.is_active = True
 
-        elif event == "start":
-            await self._handle_start(data)
+            elif event == "start":
+                await self._handle_start(data)
 
-        elif event == "media":
-            await self._handle_media(data)
+            elif event == "media":
+                await self._handle_media(data)
 
-        elif event == "dtmf":
-            digit = data.get("dtmf", {}).get("digit")
-            logger.info(f"📱 DTMF: {digit}")
+            elif event == "dtmf":
+                digit = data.get("dtmf", {}).get("digit")
+                logger.info(f"📱 DTMF: {digit}")
 
-        elif event == "stop":
-            reason = data.get("stop", {}).get("reason", "unknown")
-            logger.info(f"📴 Call ended: {reason}")
-            self.is_active = False
+            elif event == "stop":
+                reason = data.get("stop", {}).get("reason", "unknown")
+                logger.info(f"📴 Call ended: {reason}")
+                self.is_active = False
 
-        elif event == "mark":
-            name = data.get("mark", {}).get("name", "")
-            if name == "ai_done":
-                self.is_ai_speaking = False
+            elif event == "mark":
+                name = data.get("mark", {}).get("name", "")
+                if name == "ai_done":
+                    self.is_ai_speaking = False
+        except Exception as e:
+            logger.error(f"Error handling event '{event}': {str(e)}", exc_info=True)
 
     async def _handle_start(self, data: dict):
         """Handle stream start - extract call info and send greeting"""
@@ -114,12 +119,11 @@ class ExotelCallSession:
         logger.info(
             f"📞 Call started: {self.call_sid} | "
             f"From: {start_info.get('from')} → To: {start_info.get('to')} | "
-            f"Sample rate: {self.sample_rate}Hz"
+            f"Sample rate: {self.sample_rate}Hz | Stream: {self.stream_sid}"
         )
 
-        # Send AI greeting after a short delay (let the call connect)
-        await asyncio.sleep(0.5)
-        await self._send_greeting()
+        # Send greeting in background (don't block the message loop)
+        asyncio.create_task(self._send_greeting_safe())
 
     async def _handle_media(self, data: dict):
         """Handle incoming audio from caller - VAD + buffer"""
@@ -266,13 +270,17 @@ class ExotelCallSession:
             async def on_sentence_ready(sentence: str):
                 if self.interrupted:
                     return
-                # TTS for this sentence
-                audio_b64 = await tts.synthesize_speech(sentence, detected_language)
-                if audio_b64 and not self.interrupted:
-                    # Convert MP3 to PCM for Exotel
-                    pcm_data = await self._mp3_to_pcm(audio_b64)
-                    if pcm_data:
-                        await self._send_audio_to_caller(pcm_data)
+                # Get PCM audio directly (no ffmpeg needed)
+                pcm_data = await self._tts_to_pcm(sentence, detected_language)
+                if pcm_data and not self.interrupted:
+                    await self._send_audio_to_caller(pcm_data)
+                elif not self.interrupted:
+                    # Fallback: try MP3 → PCM conversion
+                    audio_b64 = await tts.synthesize_speech(sentence, detected_language)
+                    if audio_b64:
+                        pcm_data = await self._mp3_to_pcm(audio_b64)
+                        if pcm_data and not self.interrupted:
+                            await self._send_audio_to_caller(pcm_data)
 
             full_response = await llm.generate_response_streaming(
                 prompt=transcript + product_context,
@@ -301,27 +309,36 @@ class ExotelCallSession:
             logger.error(f"Pipeline error: {str(e)}", exc_info=True)
             self.is_ai_speaking = False
 
+    async def _send_greeting_safe(self):
+        """Wrapper to catch errors in greeting so they don't crash the session"""
+        try:
+            await asyncio.sleep(0.5)
+            await self._send_greeting()
+        except Exception as e:
+            logger.error(f"Greeting error: {str(e)}", exc_info=True)
+
     async def _send_greeting(self):
         """AI initiates the conversation"""
-        if not self.product_config:
-            return
+        # Default greeting if no product config
+        if not self.product_config or not self.product_config.get("productName"):
+            greeting = "Hello! This is your AI sales assistant. How can I help you today?"
+        else:
+            pc = self.product_config
+            product_name = pc.get("productName", "our product")
+            company_name = pc.get("companyName", "our company")
 
-        pc = self.product_config
-        product_name = pc.get("productName", "our product")
-        company_name = pc.get("companyName", "our company")
+            opening_prompt = (
+                f"You are calling a potential customer to introduce {product_name} from {company_name}. "
+                f"Start with a warm greeting and briefly introduce yourself. Keep it to 1-2 sentences max. "
+                f"Be natural like a real phone call."
+            )
 
-        opening_prompt = (
-            f"You are calling a potential customer to introduce {product_name} from {company_name}. "
-            f"Start with a warm greeting and briefly introduce yourself. Keep it to 1-2 sentences max. "
-            f"Be natural like a real phone call."
-        )
-
-        greeting = await llm.generate_response(
-            prompt=opening_prompt,
-            context=[],
-            personality="sales",
-            language=self.language,
-        )
+            greeting = await llm.generate_response(
+                prompt=opening_prompt,
+                context=[],
+                personality="sales",
+                language=self.language,
+            )
 
         if greeting:
             self.conversation_history.append({"role": "assistant", "content": greeting})
@@ -334,13 +351,18 @@ class ExotelCallSession:
             elif self.language == "te":
                 detected_lang = "te-IN"
 
-            # Generate TTS and send to caller
+            # Get PCM audio directly (no ffmpeg needed)
             self.is_ai_speaking = True
-            audio_b64 = await tts.synthesize_speech(greeting, detected_lang)
-            if audio_b64:
-                pcm_data = await self._mp3_to_pcm(audio_b64)
-                if pcm_data:
-                    await self._send_audio_to_caller(pcm_data)
+            pcm_data = await self._tts_to_pcm(greeting, detected_lang)
+            if pcm_data:
+                await self._send_audio_to_caller(pcm_data)
+            else:
+                logger.warning("TTS PCM failed for greeting, trying MP3 fallback")
+                audio_b64 = await tts.synthesize_speech(greeting, detected_lang)
+                if audio_b64:
+                    pcm_data = await self._mp3_to_pcm(audio_b64)
+                    if pcm_data:
+                        await self._send_audio_to_caller(pcm_data)
 
             await self._send_to_exotel({
                 "event": "mark",
@@ -376,21 +398,22 @@ class ExotelCallSession:
     async def _mp3_to_pcm(self, mp3_base64: str) -> Optional[bytes]:
         """
         Convert MP3 (base64) to raw PCM (8kHz, 16-bit, mono) for Exotel.
-        Uses ffmpeg for conversion.
+        Uses ffmpeg if available, otherwise tries pydub/audioop fallback.
         """
         try:
             import shutil
+            import glob
             mp3_bytes = base64.b64decode(mp3_base64)
 
             # Find ffmpeg
             ffmpeg_path = shutil.which("ffmpeg")
             if not ffmpeg_path:
-                # Check common WinGet install location
-                import glob
+                # Check common install locations
                 patterns = [
+                    "/usr/bin/ffmpeg",
+                    "/usr/local/bin/ffmpeg",
                     r"C:\Users\*\AppData\Local\Microsoft\WinGet\Packages\*ffmpeg*\*\bin\ffmpeg.exe",
                     r"C:\ffmpeg\bin\ffmpeg.exe",
-                    r"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
                 ]
                 for pattern in patterns:
                     matches = glob.glob(pattern)
@@ -398,28 +421,71 @@ class ExotelCallSession:
                         ffmpeg_path = matches[0]
                         break
 
-            if not ffmpeg_path:
-                logger.error("ffmpeg not found - install ffmpeg for audio conversion")
-                return None
+            if ffmpeg_path:
+                process = await asyncio.create_subprocess_exec(
+                    ffmpeg_path, '-i', 'pipe:0',
+                    '-f', 's16le', '-acodec', 'pcm_s16le',
+                    '-ar', str(self.sample_rate), '-ac', '1',
+                    'pipe:1',
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate(input=mp3_bytes)
 
-            process = await asyncio.create_subprocess_exec(
-                ffmpeg_path, '-i', 'pipe:0',
-                '-f', 's16le', '-acodec', 'pcm_s16le',
-                '-ar', str(self.sample_rate), '-ac', '1',
-                'pipe:1',
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await process.communicate(input=mp3_bytes)
+                if process.returncode == 0 and stdout:
+                    return stdout
+                else:
+                    logger.warning(f"ffmpeg failed: {stderr.decode()[:100]}")
 
-            if process.returncode == 0 and stdout:
-                return stdout
-            else:
-                logger.warning(f"ffmpeg conversion failed: {stderr.decode()[:100]}")
-                return None
+            # Fallback: use Sarvam TTS with WAV output directly
+            logger.warning("ffmpeg not available, using WAV TTS fallback")
+            return None
         except Exception as e:
             logger.error(f"Audio conversion error: {str(e)}")
+            return None
+
+    async def _tts_to_pcm(self, text: str, language: str) -> Optional[bytes]:
+        """
+        Get TTS audio as raw PCM directly (no ffmpeg needed).
+        Uses Sarvam's REST endpoint which returns WAV when requested.
+        """
+        try:
+            from app.config import get_settings
+            settings = get_settings()
+
+            url = f"{settings.SARVAM_API_BASE_URL}/text-to-speech"
+            headers = {
+                "api-subscription-key": settings.SARVAM_API_KEY,
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "text": text[:2500],
+                "target_language_code": language if "-" in language else "en-IN",
+                "speaker": "suhani",
+                "model": "bulbul:v3",
+                "pace": 1.2,
+                "speech_sample_rate": str(self.sample_rate),
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        audios = result.get("audios", [])
+                        if audios:
+                            # This is base64 WAV audio - decode and extract PCM
+                            wav_bytes = base64.b64decode(audios[0])
+                            # Skip WAV header (44 bytes) to get raw PCM
+                            if wav_bytes[:4] == b'RIFF':
+                                return wav_bytes[44:]
+                            return wav_bytes
+                    else:
+                        error = await response.text()
+                        logger.error(f"TTS PCM error ({response.status}): {error[:100]}")
+            return None
+        except Exception as e:
+            logger.error(f"TTS PCM failed: {str(e)}")
             return None
 
     def _pcm_to_wav(self, pcm_data: bytes, sample_rate: int) -> bytes:
