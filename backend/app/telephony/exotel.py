@@ -287,31 +287,28 @@ class ExotelCallSession:
                     f"Target: {pc.get('targetAudience', '')}]"
                 )
 
-            # LLM
+            # LLM - get full response then send to TTS as ONE chunk (smoothest audio)
             self.is_ai_speaking = True
-
-            async def on_sentence_ready(sentence: str):
-                if self.interrupted:
-                    return
-                # Get PCM audio directly (no ffmpeg needed)
-                pcm_data = await self._tts_to_pcm(sentence, detected_language)
-                if pcm_data and not self.interrupted:
-                    await self._send_audio_to_caller(pcm_data)
-                elif not self.interrupted:
-                    # Fallback: try MP3 → PCM conversion
-                    audio_b64 = await tts.synthesize_speech(sentence, detected_language)
-                    if audio_b64:
-                        pcm_data = await self._mp3_to_pcm(audio_b64)
-                        if pcm_data and not self.interrupted:
-                            await self._send_audio_to_caller(pcm_data)
 
             full_response = await llm.generate_response_streaming(
                 prompt=transcript + product_context,
                 context=self.conversation_history[:-1],
                 personality="sales",
                 language=self.language,
-                sentence_callback=on_sentence_ready,
+                sentence_callback=None,  # No splitting - full response = smoothest audio
             )
+
+            if full_response and not self.interrupted:
+                pcm_data = await self._tts_to_pcm(full_response, detected_language)
+                if pcm_data and not self.interrupted:
+                    await self._send_audio_to_caller(pcm_data)
+                elif not self.interrupted:
+                    # Fallback: try MP3 → PCM conversion
+                    audio_b64 = await tts.synthesize_speech(full_response, detected_language)
+                    if audio_b64:
+                        pcm_data = await self._mp3_to_pcm(audio_b64)
+                        if pcm_data and not self.interrupted:
+                            await self._send_audio_to_caller(pcm_data)
 
             self.conversation_history.append({"role": "assistant", "content": full_response})
 

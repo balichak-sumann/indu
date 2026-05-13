@@ -159,30 +159,12 @@ class SarvamLLM:
         return full_response
 
     def _split_sentences(self, text: str) -> list:
-        """Split text into sentences and phrases for faster TTS streaming"""
+        """Split text into sentences at natural boundaries"""
         import re
-        # Split on sentence-ending punctuation AND commas for faster playback
-        # This creates phrase-level chunks that TTS can speak naturally
-        parts = re.split(r'(?<=[.!?,।॥])\s+', text)
+        parts = re.split(r'(?<=[.!?।॥])\s+', text)
         if len(parts) <= 1:
             return [text]
-        # Merge very short chunks (< 10 chars) with the next one
-        merged = []
-        buffer = ""
-        for p in parts:
-            p = p.strip()
-            if not p:
-                continue
-            buffer = (buffer + " " + p).strip() if buffer else p
-            if len(buffer) >= 15:  # Minimum chunk size for natural TTS
-                merged.append(buffer)
-                buffer = ""
-        if buffer:
-            if merged:
-                merged[-1] = merged[-1] + " " + buffer
-            else:
-                merged.append(buffer)
-        return merged
+        return [p for p in parts if p.strip()]
 
     def _strip_think_tags(self, text: str) -> str:
         """Remove <think>...</think> reasoning blocks from model output"""
