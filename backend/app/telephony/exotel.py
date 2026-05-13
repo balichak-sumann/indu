@@ -73,7 +73,8 @@ class ExotelCallSession:
     async def handle_message(self, data: dict):
         """Route incoming Exotel WebSocket messages"""
         event = data.get("event")
-        logger.info(f"📞 Exotel event: {event}")
+        if event != "media":  # Don't log every media event (50/sec)
+            logger.info(f"📞 Exotel event: {event}")
 
         try:
             if event == "connected":

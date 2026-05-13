@@ -152,12 +152,13 @@ async def get_exotel_ws_url(config_id: str = "default", language: str = "en"):
 async def exotel_voicebot_endpoint(websocket: WebSocket):
     """
     Exotel Voicebot WebSocket endpoint.
-    Exotel connects here when a call starts (via Voicebot applet).
     Handles bidirectional audio streaming for AI voice calls.
     """
     await websocket.accept()
-    session = None
 
+    # Create session immediately
+    session = ExotelCallSession(websocket=websocket, product_config={})
+    
     try:
         logger.info("📞 Exotel WebSocket connection accepted")
 
@@ -165,20 +166,14 @@ async def exotel_voicebot_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             event = data.get("event")
 
-            # On start event, create session with product config
+            # On start event, update session with product config
             if event == "start":
-                # Get product config from custom params or default
                 custom_params = data.get("start", {}).get("custom_parameters", {})
                 config_id = custom_params.get("config_id", "default")
                 product_config = _call_configs.get(config_id, {})
+                session.product_config = product_config
 
-                session = ExotelCallSession(
-                    websocket=websocket,
-                    product_config=product_config,
-                )
-
-            if session:
-                await session.handle_message(data)
+            await session.handle_message(data)
 
             if event == "stop":
                 break
