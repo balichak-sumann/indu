@@ -529,7 +529,7 @@ class ExotelCallSession:
                 "target_language_code": target_lang,
                 "speaker": "priya",
                 "model": "bulbul:v3",
-                "pace": 1.35,
+                "pace": 1.0,
                 "speech_sample_rate": str(self.sample_rate),
             }
 
