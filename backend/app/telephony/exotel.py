@@ -477,11 +477,45 @@ class ExotelCallSession:
     async def _tts_to_pcm(self, text: str, language: str) -> Optional[bytes]:
         """
         Get TTS audio as raw PCM directly (no ffmpeg needed).
-        Uses Sarvam's REST endpoint which returns WAV when requested.
+        Uses Sarvam's REST endpoint which returns WAV.
+        Auto-detects language from text if needed.
         """
         try:
             from app.config import get_settings
             settings = get_settings()
+
+            # Auto-detect language from text characters
+            target_lang = language if "-" in language else "en-IN"
+            
+            # Check if text contains non-Latin scripts
+            has_devanagari = any('\u0900' <= c <= '\u097F' for c in text)
+            has_telugu = any('\u0C00' <= c <= '\u0C7F' for c in text)
+            has_tamil = any('\u0B80' <= c <= '\u0BFF' for c in text)
+            has_kannada = any('\u0C80' <= c <= '\u0CFF' for c in text)
+            has_bengali = any('\u0980' <= c <= '\u09FF' for c in text)
+            has_malayalam = any('\u0D00' <= c <= '\u0D7F' for c in text)
+            has_gujarati = any('\u0A80' <= c <= '\u0AFF' for c in text)
+            
+            if has_telugu:
+                target_lang = "te-IN"
+            elif has_devanagari:
+                target_lang = "hi-IN"
+            elif has_tamil:
+                target_lang = "ta-IN"
+            elif has_kannada:
+                target_lang = "kn-IN"
+            elif has_bengali:
+                target_lang = "bn-IN"
+            elif has_malayalam:
+                target_lang = "ml-IN"
+            elif has_gujarati:
+                target_lang = "gu-IN"
+
+            # Remove emojis and special chars that TTS can't handle
+            import re
+            clean_text = re.sub(r'[^\w\s.,!?;:\-\'\"()।॥]', '', text).strip()
+            if not clean_text:
+                clean_text = text.strip()
 
             url = f"{settings.SARVAM_API_BASE_URL}/text-to-speech"
             headers = {
@@ -489,8 +523,8 @@ class ExotelCallSession:
                 "Content-Type": "application/json",
             }
             payload = {
-                "text": text[:2500],
-                "target_language_code": language if "-" in language else "en-IN",
+                "text": clean_text[:2500],
+                "target_language_code": target_lang,
                 "speaker": "suhani",
                 "model": "bulbul:v3",
                 "pace": 1.2,
@@ -503,7 +537,6 @@ class ExotelCallSession:
                         result = await response.json()
                         audios = result.get("audios", [])
                         if audios:
-                            # This is base64 WAV audio - decode and extract PCM
                             wav_bytes = base64.b64decode(audios[0])
                             # Skip WAV header (44 bytes) to get raw PCM
                             if wav_bytes[:4] == b'RIFF':
