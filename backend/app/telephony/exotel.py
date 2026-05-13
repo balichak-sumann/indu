@@ -395,8 +395,9 @@ class ExotelCallSession:
 
     async def _send_audio_to_caller(self, pcm_data: bytes):
         """Send PCM audio to Exotel in chunks"""
-        # Send in chunks of 640 bytes (20ms at 8kHz, 16-bit)
-        chunk_size = 640
+        # Exotel requires: minimum 3200 bytes (100ms), max 100k, multiples of 320
+        # Using 6400 bytes = 200ms chunks at 8kHz 16-bit mono
+        chunk_size = 6400
         self._sequence_number += 1
         self._ai_speaking_frames = 0
 
@@ -404,9 +405,10 @@ class ExotelCallSession:
             if self.interrupted:
                 break
             chunk = pcm_data[i:i + chunk_size]
-            # Pad last chunk if needed
-            if len(chunk) < chunk_size:
-                chunk = chunk + b'\x00' * (chunk_size - len(chunk))
+            # Pad last chunk to multiple of 320 bytes
+            remainder = len(chunk) % 320
+            if remainder != 0:
+                chunk = chunk + b'\x00' * (320 - remainder)
 
             payload = base64.b64encode(chunk).decode('utf-8')
             await self._send_to_exotel({
@@ -416,8 +418,8 @@ class ExotelCallSession:
                     "payload": payload,
                 },
             })
-            # Small delay to prevent overwhelming the connection
-            await asyncio.sleep(0.018)  # ~18ms per chunk
+            # Delay proportional to chunk duration (~200ms of audio per chunk)
+            await asyncio.sleep(0.15)
 
         # Set cooldown after AI finishes speaking
         if not self.interrupted:
