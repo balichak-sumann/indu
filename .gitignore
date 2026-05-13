@@ -1,0 +1,83 @@
+# Backend
+backend/venv/
+backend/.venv/
+**/__pycache__/
+**/*.pyc
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+backend/logs/
+backend/*.log
+backend/.DS_Store
+backend/.env
+backend/dist/
+backend/build/
+backend/*.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Root .env
+.env
+.env.local
+
+# IDE Settings
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.bak
+*~
+.~*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db

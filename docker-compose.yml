@@ -1,0 +1,115 @@
+services:
+  # Backend FastAPI Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: conversational-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - API_TITLE=Conversational AI Agent
+      - API_VERSION=1.0.0
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      - SARVAM_API_KEY=${SARVAM_API_KEY}
+      - SARVAM_API_BASE_URL=https://api.sarvam.ai
+      - SARVAM_LLM_MODEL=sarvam-30b
+      - SARVAM_STT_MODEL=saaras:v3
+      - SARVAM_TTS_MODEL=bulbul:v3
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://user:root@postgres:5432/indu2
+      - LOG_LEVEL=INFO
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./backend:/app
+    networks:
+      - conversational-ai
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Frontend React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: conversational-ai-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - conversational-ai
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: conversational-ai-redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - conversational-ai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: conversational-ai-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=indu2
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - conversational-ai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PgAdmin for Database Management (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: conversational-ai-pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    depends_on:
+      - postgres
+    networks:
+      - conversational-ai
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  conversational-ai:
+    driver: bridge
