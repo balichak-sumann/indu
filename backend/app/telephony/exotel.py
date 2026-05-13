@@ -65,10 +65,14 @@ class ExotelCallSession:
         self._processing_task: Optional[asyncio.Task] = None
         self._sequence_number = 0
 
-        # VAD settings (energy-based for telephony audio)
-        self.vad_threshold = 200  # RMS threshold for speech detection
-        self.silence_duration_frames = 25  # ~800ms of silence at 8kHz (32ms per frame)
-        self.min_speech_frames = 10  # ~320ms minimum speech
+        # VAD settings (tuned for telephony - phone audio has more noise)
+        self.vad_threshold = 500  # Higher RMS threshold for phone audio noise floor
+        self.silence_duration_frames = 40  # ~1.3s of silence before ending speech
+        self.min_speech_frames = 30  # ~1s minimum speech to avoid false triggers
+        self.interrupt_min_frames = 15  # AI must be speaking 15+ frames before interrupt allowed
+        self._ai_speaking_frames = 0  # Track how long AI has been speaking
+        self._cooldown_frames = 0  # Cooldown after AI stops speaking
+        self._cooldown_duration = 25  # ~800ms cooldown after AI audio ends
 
     async def handle_message(self, data: dict):
         """Route incoming Exotel WebSocket messages"""
@@ -137,7 +141,28 @@ class ExotelCallSession:
         # Decode base64 PCM audio
         audio_bytes = base64.b64decode(payload)
 
-        # Simple energy-based VAD
+        # Track AI speaking duration
+        if self.is_ai_speaking:
+            self._ai_speaking_frames += 1
+            # Don't process caller audio while AI is speaking (echo suppression)
+            # Only allow interrupt after AI has been speaking long enough
+            rms = self._calculate_rms(audio_bytes)
+            if rms > self.vad_threshold * 1.5 and self._ai_speaking_frames > self.interrupt_min_frames:
+                # Strong speech detected during AI playback - interrupt
+                self.speech_frames += 1
+                if self.speech_frames >= 5:  # Need sustained speech to interrupt
+                    await self._interrupt_ai()
+                    self.speech_frames = 0
+            else:
+                self.speech_frames = 0
+            return
+
+        # Cooldown after AI stops speaking (avoid echo pickup)
+        if self._cooldown_frames > 0:
+            self._cooldown_frames -= 1
+            return
+
+        # Normal VAD when AI is not speaking
         rms = self._calculate_rms(audio_bytes)
 
         if rms > self.vad_threshold:
@@ -145,14 +170,9 @@ class ExotelCallSession:
             self.speech_frames += 1
             self.silence_frames = 0
 
-            if not self.is_speech_active and self.speech_frames >= 3:
-                # Speech started
+            if not self.is_speech_active and self.speech_frames >= 5:
+                # Speech started (need 5 consecutive frames ~160ms)
                 self.is_speech_active = True
-                logger.debug("🗣️ Speech started")
-
-                # Interrupt AI if speaking
-                if self.is_ai_speaking:
-                    await self._interrupt_ai()
 
             if self.is_speech_active:
                 self.audio_buffer.extend(audio_bytes)
@@ -170,7 +190,7 @@ class ExotelCallSession:
                         await self._process_speech()
                     else:
                         # Too short - discard
-                        logger.debug("⚡ Speech too short, discarding")
+                        pass
 
                     # Reset
                     self.audio_buffer = bytearray()
@@ -196,6 +216,8 @@ class ExotelCallSession:
         """Stop AI audio playback immediately"""
         self.is_ai_speaking = False
         self.interrupted = True
+        self._ai_speaking_frames = 0
+        self._cooldown_frames = self._cooldown_duration
 
         # Cancel ongoing processing
         if self._processing_task and not self._processing_task.done():
@@ -376,6 +398,7 @@ class ExotelCallSession:
         # Send in chunks of 640 bytes (20ms at 8kHz, 16-bit)
         chunk_size = 640
         self._sequence_number += 1
+        self._ai_speaking_frames = 0
 
         for i in range(0, len(pcm_data), chunk_size):
             if self.interrupted:
@@ -395,6 +418,11 @@ class ExotelCallSession:
             })
             # Small delay to prevent overwhelming the connection
             await asyncio.sleep(0.018)  # ~18ms per chunk
+
+        # Set cooldown after AI finishes speaking
+        if not self.interrupted:
+            self._cooldown_frames = self._cooldown_duration
+            self.is_ai_speaking = False
 
     async def _mp3_to_pcm(self, mp3_base64: str) -> Optional[bytes]:
         """
