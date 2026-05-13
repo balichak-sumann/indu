@@ -67,7 +67,7 @@ class ExotelCallSession:
 
         # VAD settings (tuned for telephony - phone audio has more noise)
         self.vad_threshold = 500  # Higher RMS threshold for phone audio noise floor
-        self.silence_duration_frames = 40  # ~1.3s of silence before ending speech
+        self.silence_duration_frames = 25  # ~800ms of silence before ending speech (faster response)
         self.min_speech_frames = 18  # ~600ms minimum speech (catches short words like "yes", "no")
         self.interrupt_min_frames = 15  # AI must be speaking 15+ frames before interrupt allowed
         self._ai_speaking_frames = 0  # Track how long AI has been speaking
