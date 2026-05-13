@@ -513,9 +513,9 @@ class ExotelCallSession:
             elif has_gujarati:
                 target_lang = "gu-IN"
 
-            # Remove emojis and special chars that TTS can't handle
+            # Just remove emojis, keep everything else for TTS
             import re
-            clean_text = re.sub(r'[^\w\s.,!?;:\-\'\"()।॥]', '', text).strip()
+            clean_text = re.sub(r'[\U0001F000-\U0001FFFF]', '', text).strip()
             if not clean_text:
                 clean_text = text.strip()
 
