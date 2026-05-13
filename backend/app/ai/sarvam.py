@@ -188,8 +188,8 @@ class SarvamLLM:
             "model": self.model,
             "messages": messages,
             "temperature": 0.8,
-            "max_tokens": 1024,
-            # sarvam-m is fast (~1.5s) and doesn't waste tokens on heavy reasoning
+            "max_tokens": 2048,
+            # sarvam-m needs 2048 (uses ~500-800 for internal reasoning)
         }
 
         try:
