@@ -381,13 +381,27 @@ class ExotelCallSession:
     async def _send_greeting_safe(self):
         """Wrapper to catch errors in greeting so they don't crash the session"""
         try:
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
             await self._send_greeting()
         except Exception as e:
             logger.error(f"Greeting error: {str(e)}", exc_info=True)
 
     async def _send_greeting(self):
-        """AI initiates the conversation"""
+        """AI initiates the conversation - uses pre-compiled audio if available"""
+        from app.main import _precompiled_greeting, _precompiled_greeting_text
+        
+        # Use pre-compiled greeting if available (instant playback!)
+        if _precompiled_greeting:
+            logger.info(f"🤖 Greeting (pre-compiled): '{_precompiled_greeting_text[:60]}...'")
+            self.conversation_history.append({"role": "assistant", "content": _precompiled_greeting_text})
+            self.is_ai_speaking = True
+            await self._send_audio_to_caller(_precompiled_greeting)
+            await self._send_to_exotel({
+                "event": "mark",
+                "stream_sid": self.stream_sid,
+                "mark": {"name": "ai_done"},
+            })
+            return
         # Default greeting if no product config
         if not self.product_config or not self.product_config.get("productName"):
             greeting = "Hello! This is your AI sales assistant. How can I help you today?"

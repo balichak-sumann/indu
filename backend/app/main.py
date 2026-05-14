@@ -135,18 +135,67 @@ async def global_exception_handler(request, exc):
 _call_configs = {}
 # Default product config (used when Exotel "Test out" connects without config_id)
 _default_product_config = {}
+# Pre-compiled greeting audio (PCM bytes ready to play)
+_precompiled_greeting = None
+_precompiled_greeting_text = None
 
 
 @app.post("/api/product-config", tags=["Product"])
 async def set_product_config(config: dict):
     """
-    Set the product config that the AI will use for the next call.
-    Call this from the dashboard before triggering a call from Exotel "Test out".
+    Set the product config and pre-generate the greeting audio.
     """
-    global _default_product_config
+    global _default_product_config, _precompiled_greeting, _precompiled_greeting_text
     _default_product_config = config
     logger.info(f"📦 Product config set: {config.get('productName', 'unknown')}")
-    return {"success": True, "message": f"Product config set for: {config.get('productName', '')}"}
+    
+    # Pre-generate greeting
+    try:
+        from app.ai.sarvam import llm, tts
+        import base64, aiohttp
+        
+        pc = config
+        product_name = pc.get("productName", "our product")
+        company_name = pc.get("companyName", "our company")
+        
+        opening_prompt = (
+            f"You are calling a potential customer to introduce {product_name} from {company_name}. "
+            f"Start with a warm greeting and briefly introduce yourself and the product in 1-2 sentences. "
+            f"Be natural like a real phone call."
+        )
+        
+        greeting_text = await llm.generate_response(
+            prompt=opening_prompt, context=[], personality="sales", language="en"
+        )
+        
+        if greeting_text:
+            # Pre-generate TTS audio
+            from app.config import get_settings
+            settings_local = get_settings()
+            url = f"{settings_local.SARVAM_API_BASE_URL}/text-to-speech"
+            headers = {"api-subscription-key": settings_local.SARVAM_API_KEY, "Content-Type": "application/json"}
+            payload = {
+                "text": greeting_text[:2500],
+                "target_language_code": "en-IN",
+                "speaker": "suhani",
+                "model": "bulbul:v3",
+                "pace": 1.0,
+                "speech_sample_rate": "8000",
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        audios = result.get("audios", [])
+                        if audios:
+                            wav_bytes = base64.b64decode(audios[0])
+                            _precompiled_greeting = wav_bytes[44:] if wav_bytes[:4] == b'RIFF' else wav_bytes
+                            _precompiled_greeting_text = greeting_text
+                            logger.info(f"✅ Greeting pre-compiled: '{greeting_text[:50]}...' ({len(_precompiled_greeting)} bytes)")
+    except Exception as e:
+        logger.error(f"Failed to pre-compile greeting: {e}")
+    
+    return {"success": True, "message": f"Product config set for: {config.get('productName', '')}", "greeting_ready": _precompiled_greeting is not None}
 
 
 @app.get("/api/exotel/ws-url", tags=["Telephony"])
