@@ -147,7 +147,7 @@ class ExotelCallSession:
             # Don't process caller audio while AI is speaking (echo suppression)
             # Only allow interrupt after AI has been speaking long enough
             rms = self._calculate_rms(audio_bytes)
-            if rms > self.vad_threshold and self._ai_speaking_frames > self.interrupt_min_frames:
+            if rms > self.vad_threshold * 2 and self._ai_speaking_frames > self.interrupt_min_frames:
                 # Strong speech detected during AI playback - interrupt
                 self.speech_frames += 1
                 if self.speech_frames >= 5:  # Need sustained speech to interrupt
