@@ -421,7 +421,7 @@ class ExotelCallSession:
         self._ai_speaking_frames = 0
 
         for i in range(0, len(pcm_data), chunk_size):
-            if self.interrupted:
+            if self.interrupted or not self.is_active:
                 break
             chunk = pcm_data[i:i + chunk_size]
             # Pad last chunk to multiple of 320 bytes
@@ -546,7 +546,7 @@ class ExotelCallSession:
             payload = {
                 "text": clean_text[:2500],
                 "target_language_code": target_lang,
-                "speaker": "priya",
+                "speaker": "suhani",
                 "model": "bulbul:v3",
                 "pace": 1.0,
                 "output_audio_codec": "wav",
@@ -583,7 +583,7 @@ class ExotelCallSession:
             payload = {
                 "text": text[:2500],
                 "target_language_code": target_lang,
-                "speaker": "priya",
+                "speaker": "suhani",
                 "model": "bulbul:v3",
                 "pace": 1.0,
                 "speech_sample_rate": str(self.sample_rate),
@@ -634,7 +634,15 @@ class ExotelCallSession:
 
     async def _send_to_exotel(self, message: dict):
         """Send JSON message to Exotel WebSocket"""
+        if not self.is_active:
+            return  # Don't try to send if call has ended
         try:
             await self.websocket.send_json(message)
         except Exception as e:
-            logger.error(f"Error sending to Exotel: {str(e)}")
+            # WebSocket closed - mark call as inactive to stop further sends
+            self.is_active = False
+            self.interrupted = True
+            # Cancel any ongoing processing task
+            if self._processing_task and not self._processing_task.done():
+                self._processing_task.cancel()
+
