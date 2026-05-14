@@ -306,16 +306,19 @@ class ExotelCallSession:
             elif locked == "hi-IN":
                 language_instruction = "\n[RESPOND ONLY IN HINDI DEVANAGARI (हिंदी). DO NOT use English or transliteration.]"
 
-            # Build product context
+            # Build product context - make it a strong instruction
             product_context = ""
             if self.product_config:
                 pc = self.product_config
                 product_context = (
-                    f"\n[PRODUCT: {pc.get('productName', '')} by {pc.get('companyName', '')}. "
-                    f"{pc.get('productDescription', '')} "
-                    f"Features: {pc.get('keyFeatures', '')}. "
-                    f"Price: {pc.get('pricing', '')}. "
-                    f"Target: {pc.get('targetAudience', '')}]"
+                    f"\n\nYOU ARE SELLING THIS PRODUCT - ALWAYS talk about it:\n"
+                    f"Product: {pc.get('productName', '')}\n"
+                    f"Company: {pc.get('companyName', '')}\n"
+                    f"What it does: {pc.get('productDescription', '')}\n"
+                    f"Key benefits: {pc.get('keyFeatures', '')}\n"
+                    f"Price: {pc.get('pricing', '')}\n"
+                    f"For: {pc.get('targetAudience', '')}\n"
+                    f"YOUR JOB: Pitch this product, answer questions about it, handle objections, close the sale."
                 )
 
             # LLM - get full response then send to TTS as ONE chunk (smoothest audio)
