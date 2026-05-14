@@ -313,8 +313,6 @@ class ExotelCallSession:
                 tts_text = re.sub(r'<think>.*$', '', tts_text, flags=re.DOTALL).strip()
                 if not tts_text or '<think>' in tts_text:
                     tts_text = "Could you say that again?"
-                # Limit response length for faster TTS (shorter = faster)
-                tts_text = tts_text[:200]
                 tts_start = time.time()
                 pcm_data = await self._tts_to_pcm(tts_text, detected_language)
                 tts_time = time.time() - tts_start
