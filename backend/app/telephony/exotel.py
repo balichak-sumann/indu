@@ -264,7 +264,8 @@ class ExotelCallSession:
             stt_result = await stt.transcribe_audio(wav_data, self.language)
             stt_time = time.time() - stt_start
             transcript = stt_result.get("text", "").strip()
-            detected_language = stt_result.get("language_code", "en-IN")
+            # Use locked language if set, otherwise STT detected
+            detected_language = getattr(self, '_locked_language', None) or stt_result.get("language_code", "en-IN")
 
             if not transcript:
                 logger.info("📝 Empty transcription, skipping")
@@ -279,6 +280,35 @@ class ExotelCallSession:
                 return
 
             self.conversation_history.append({"role": "user", "content": transcript})
+
+            # Detect if user is speaking in a non-English language
+            # Check transcript for Indian script characters
+            has_telugu = any('\u0C00' <= c <= '\u0C7F' for c in transcript)
+            has_hindi = any('\u0900' <= c <= '\u097F' for c in transcript)
+            
+            # If user spoke in Indian language, lock the conversation to that language
+            if has_telugu:
+                self._locked_language = "te-IN"
+            elif has_hindi:
+                self._locked_language = "hi-IN"
+            # If user speaks pure English for 3+ consecutive messages, switch back
+            elif not hasattr(self, '_english_count'):
+                self._english_count = 0
+            
+            if not has_telugu and not has_hindi:
+                self._english_count = getattr(self, '_english_count', 0) + 1
+                if self._english_count >= 3:
+                    self._locked_language = None  # Allow English
+            else:
+                self._english_count = 0
+
+            # Add language instruction to prompt if locked
+            language_instruction = ""
+            locked = getattr(self, '_locked_language', None)
+            if locked == "te-IN":
+                language_instruction = "\n[RESPOND ONLY IN TELUGU SCRIPT (తెలుగు). DO NOT use English or transliteration.]"
+            elif locked == "hi-IN":
+                language_instruction = "\n[RESPOND ONLY IN HINDI DEVANAGARI (हिंदी). DO NOT use English or transliteration.]"
 
             # Build product context
             product_context = ""
@@ -297,7 +327,7 @@ class ExotelCallSession:
 
             llm_start = time.time()
             full_response = await llm.generate_response_streaming(
-                prompt=transcript + product_context,
+                prompt=transcript + product_context + language_instruction,
                 context=self.conversation_history[:-1],
                 personality="sales",
                 language=self.language,
