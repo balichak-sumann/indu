@@ -282,25 +282,21 @@ class ExotelCallSession:
             self.conversation_history.append({"role": "user", "content": transcript})
 
             # Detect if user is speaking in a non-English language
-            # Check transcript for Indian script characters
             has_telugu = any('\u0C00' <= c <= '\u0C7F' for c in transcript)
             has_hindi = any('\u0900' <= c <= '\u097F' for c in transcript)
             
-            # If user spoke in Indian language, lock the conversation to that language
-            if has_telugu:
+            # Detect language switch requests in text
+            lower_t = transcript.lower()
+            if 'telugu' in lower_t or 'తెలుగు' in lower_t:
+                self._locked_language = "te-IN"
+            elif 'hindi' in lower_t or 'हिंदी' in lower_t:
+                self._locked_language = "hi-IN"
+            elif 'english' in lower_t and ('speak' in lower_t or 'switch' in lower_t or 'talk' in lower_t):
+                self._locked_language = None
+            elif has_telugu:
                 self._locked_language = "te-IN"
             elif has_hindi:
                 self._locked_language = "hi-IN"
-            # If user speaks pure English for 3+ consecutive messages, switch back
-            elif not hasattr(self, '_english_count'):
-                self._english_count = 0
-            
-            if not has_telugu and not has_hindi:
-                self._english_count = getattr(self, '_english_count', 0) + 1
-                if self._english_count >= 3:
-                    self._locked_language = None  # Allow English
-            else:
-                self._english_count = 0
 
             # Add language instruction to prompt if locked
             language_instruction = ""
