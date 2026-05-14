@@ -251,13 +251,18 @@ class ExotelCallSession:
         )
 
     async def _run_pipeline(self, audio_data: bytes):
-        """Run the full STT → LLM → TTS pipeline"""
+        """Run the full STT → LLM → TTS pipeline with timing logs"""
+        import time
         try:
+            pipeline_start = time.time()
+            
             # Convert 8kHz PCM to 16kHz WAV for Sarvam STT
             wav_data = self._pcm_to_wav(audio_data, self.sample_rate)
 
             # STT
+            stt_start = time.time()
             stt_result = await stt.transcribe_audio(wav_data, self.language)
+            stt_time = time.time() - stt_start
             transcript = stt_result.get("text", "").strip()
             detected_language = stt_result.get("language_code", "en-IN")
 
@@ -265,7 +270,7 @@ class ExotelCallSession:
                 logger.info("📝 Empty transcription, skipping")
                 return
 
-            logger.info(f"📝 Caller said: '{transcript}'")
+            logger.info(f"📝 Caller said: '{transcript}' (STT: {stt_time:.1f}s)")
 
             # Filter filler words
             transcript_lower = transcript.lower().strip().rstrip('.!?,')
@@ -290,6 +295,7 @@ class ExotelCallSession:
             # LLM - get full response then send to TTS as ONE chunk (smoothest audio)
             self.is_ai_speaking = True
 
+            llm_start = time.time()
             full_response = await llm.generate_response_streaming(
                 prompt=transcript + product_context,
                 context=self.conversation_history[:-1],
@@ -297,9 +303,14 @@ class ExotelCallSession:
                 language=self.language,
                 sentence_callback=None,  # No splitting - full response = smoothest audio
             )
+            llm_time = time.time() - llm_start
+            logger.info(f"🤖 LLM response in {llm_time:.1f}s: '{full_response[:50]}...'")
 
             if full_response and not self.interrupted:
+                tts_start = time.time()
                 pcm_data = await self._tts_to_pcm(full_response, detected_language)
+                tts_time = time.time() - tts_start
+                logger.info(f"🔊 TTS in {tts_time:.1f}s ({len(pcm_data) if pcm_data else 0} bytes)")
                 if pcm_data and not self.interrupted:
                     await self._send_audio_to_caller(pcm_data)
                 elif not self.interrupted:
@@ -309,6 +320,9 @@ class ExotelCallSession:
                         pcm_data = await self._mp3_to_pcm(audio_b64)
                         if pcm_data and not self.interrupted:
                             await self._send_audio_to_caller(pcm_data)
+
+            total_time = time.time() - pipeline_start
+            logger.info(f"⏱️ TOTAL pipeline: {total_time:.1f}s (STT: {stt_time:.1f}s + LLM: {llm_time:.1f}s + TTS: {tts_time:.1f}s)")
 
             self.conversation_history.append({"role": "assistant", "content": full_response})
 

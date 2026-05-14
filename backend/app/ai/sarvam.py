@@ -187,9 +187,8 @@ class SarvamLLM:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.8,
+            "temperature": 0.7,
             "max_tokens": 2048,
-            # sarvam-m needs 2048 (uses ~500-800 for internal reasoning)
         }
 
         try:
