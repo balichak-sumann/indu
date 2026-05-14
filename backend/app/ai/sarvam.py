@@ -170,27 +170,26 @@ class SarvamLLM:
         """
         Handle <think>...</think> blocks from model output.
         Sometimes the model puts the actual response inside think tags.
-        Extract quoted text from think blocks if content outside is empty/transliterated.
         """
         import re
         
-        # First check if there's content OUTSIDE think tags
-        outside = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-        # Also handle unclosed <think> tag
-        outside = re.sub(r'<think>.*$', '', outside, flags=re.DOTALL).strip()
+        # Strip closed think blocks
+        cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        # Strip unclosed think blocks (ALWAYS - never let <think> reach TTS)
+        cleaned = re.sub(r'<think>.*$', '', cleaned, flags=re.DOTALL).strip()
         
-        # If outside content has native script (Telugu/Hindi), use it
+        # If after stripping we have native script content, use it
         has_native = any(
             ('\u0900' <= c <= '\u097F') or  # Devanagari
             ('\u0C00' <= c <= '\u0C7F')     # Telugu
-            for c in outside
+            for c in cleaned
         )
-        if has_native and len(outside) > 5:
-            return outside
+        if has_native and len(cleaned) > 5:
+            return cleaned
         
-        # If outside is empty or only transliterated, check inside think tags
-        # Look for quoted text in native script inside think blocks
-        think_match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
+        # If cleaned has only English/transliterated content, check if there's
+        # native script INSIDE the original think tags (model put answer there)
+        think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
         if think_match:
             think_content = think_match.group(1)
             # Find quoted native script text
@@ -204,8 +203,8 @@ class SarvamLLM:
                 if has_native_q and len(q) > 5:
                     return q
         
-        # Default: return whatever is outside think tags
-        return outside if outside else text.strip()
+        # Default: return whatever cleaned content we have
+        return cleaned if cleaned else "I'm sorry, could you please repeat that?"
 
     async def _generate_non_streaming(self, messages: list) -> str:
         """Non-streaming LLM call"""
