@@ -104,8 +104,46 @@ class ExotelCallSession:
                 name = data.get("mark", {}).get("name", "")
                 if name == "ai_done":
                     self.is_ai_speaking = False
+                    # Start silence timer - if user doesn't respond in 8s, AI follows up
+                    self._start_silence_timer()
         except Exception as e:
             logger.error(f"Error handling event '{event}': {str(e)}", exc_info=True)
+
+    def _start_silence_timer(self):
+        """Start a timer - if user is silent for 8s, AI follows up"""
+        if hasattr(self, '_silence_timer') and self._silence_timer:
+            self._silence_timer.cancel()
+        self._silence_timer = asyncio.get_event_loop().call_later(
+            8.0, lambda: asyncio.create_task(self._handle_user_silence())
+        )
+
+    async def _handle_user_silence(self):
+        """User has been silent for 8s - AI follows up like a real sales agent"""
+        if not self.is_active or self.is_ai_speaking or self.is_speech_active:
+            return
+        
+        logger.info("🤫 User silent for 8s - AI following up")
+        
+        # Generate a follow-up
+        follow_up = await llm.generate_response(
+            prompt="The customer has been silent. Follow up naturally - ask if they have questions or if they're still there. Keep it short.",
+            context=self.conversation_history[-4:],
+            personality="sales",
+            language=self.language,
+        )
+        
+        if follow_up and self.is_active and not self.is_ai_speaking:
+            self.conversation_history.append({"role": "assistant", "content": follow_up})
+            self.is_ai_speaking = True
+            detected_lang = getattr(self, '_locked_language', None) or "en-IN"
+            pcm_data = await self._tts_to_pcm(follow_up, detected_lang)
+            if pcm_data and not self.interrupted:
+                await self._send_audio_to_caller(pcm_data)
+                await self._send_to_exotel({
+                    "event": "mark",
+                    "stream_sid": self.stream_sid,
+                    "mark": {"name": "ai_done"},
+                })
 
     async def _handle_start(self, data: dict):
         """Handle stream start - extract call info and send greeting"""
@@ -173,6 +211,9 @@ class ExotelCallSession:
             if not self.is_speech_active and self.speech_frames >= 5:
                 # Speech started (need 5 consecutive frames ~160ms)
                 self.is_speech_active = True
+                # Cancel silence timer since user is speaking
+                if hasattr(self, '_silence_timer') and self._silence_timer:
+                    self._silence_timer.cancel()
 
             if self.is_speech_active:
                 self.audio_buffer.extend(audio_bytes)
@@ -259,9 +300,9 @@ class ExotelCallSession:
             # Convert 8kHz PCM to 16kHz WAV for Sarvam STT
             wav_data = self._pcm_to_wav(audio_data, self.sample_rate)
 
-            # STT
+            # STT - use "auto" to let it detect language (not force English)
             stt_start = time.time()
-            stt_result = await stt.transcribe_audio(wav_data, self.language)
+            stt_result = await stt.transcribe_audio(wav_data, "auto")
             stt_time = time.time() - stt_start
             transcript = stt_result.get("text", "").strip()
             # Use locked language if set, otherwise STT detected
