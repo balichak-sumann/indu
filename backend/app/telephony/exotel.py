@@ -302,9 +302,9 @@ class ExotelCallSession:
             language_instruction = ""
             locked = getattr(self, '_locked_language', None)
             if locked == "te-IN":
-                language_instruction = "\n[RESPOND ONLY IN TELUGU SCRIPT (తెలుగు). DO NOT use English or transliteration.]"
+                language_instruction = "\n[RESPOND IN TELUGU-ENGLISH MIX (like how Indians naturally speak). Use Telugu words mixed with English. Example: 'మీ company లో ఎంత మంది employees ఉన్నారు?' NOT pure Telugu.]"
             elif locked == "hi-IN":
-                language_instruction = "\n[RESPOND ONLY IN HINDI DEVANAGARI (हिंदी). DO NOT use English or transliteration.]"
+                language_instruction = "\n[RESPOND IN HINDI-ENGLISH MIX (Hinglish - like how Indians naturally speak). Use Hindi words mixed with English. Example: 'Aapki company mein kitne employees hain?' NOT pure Hindi.]"
 
             # Build product context - make it a strong instruction
             product_context = ""
