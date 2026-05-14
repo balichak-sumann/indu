@@ -307,15 +307,17 @@ class ExotelCallSession:
             logger.info(f"🤖 LLM response in {llm_time:.1f}s: '{full_response[:50]}...'")
 
             if full_response and not self.interrupted:
+                # Limit response length for faster TTS (shorter = faster)
+                tts_text = full_response[:200]  # Cap at 200 chars for speed
                 tts_start = time.time()
-                pcm_data = await self._tts_to_pcm(full_response, detected_language)
+                pcm_data = await self._tts_to_pcm(tts_text, detected_language)
                 tts_time = time.time() - tts_start
                 logger.info(f"🔊 TTS in {tts_time:.1f}s ({len(pcm_data) if pcm_data else 0} bytes)")
                 if pcm_data and not self.interrupted:
                     await self._send_audio_to_caller(pcm_data)
                 elif not self.interrupted:
                     # Fallback: try MP3 → PCM conversion
-                    audio_b64 = await tts.synthesize_speech(full_response, detected_language)
+                    audio_b64 = await tts.synthesize_speech(tts_text, detected_language)
                     if audio_b64:
                         pcm_data = await self._mp3_to_pcm(audio_b64)
                         if pcm_data and not self.interrupted:
