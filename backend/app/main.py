@@ -133,6 +133,20 @@ async def global_exception_handler(request, exc):
 
 # Store active product configs for calls (keyed by call reference)
 _call_configs = {}
+# Default product config (used when Exotel "Test out" connects without config_id)
+_default_product_config = {}
+
+
+@app.post("/api/product-config", tags=["Product"])
+async def set_product_config(config: dict):
+    """
+    Set the product config that the AI will use for the next call.
+    Call this from the dashboard before triggering a call from Exotel "Test out".
+    """
+    global _default_product_config
+    _default_product_config = config
+    logger.info(f"📦 Product config set: {config.get('productName', 'unknown')}")
+    return {"success": True, "message": f"Product config set for: {config.get('productName', '')}"}
 
 
 @app.get("/api/exotel/ws-url", tags=["Telephony"])
@@ -179,7 +193,7 @@ async def exotel_voicebot_endpoint(websocket: WebSocket):
             if event == "start":
                 custom_params = data.get("start", {}).get("custom_parameters", {})
                 config_id = custom_params.get("config_id", "default")
-                product_config = _call_configs.get(config_id, {})
+                product_config = _call_configs.get(config_id, _default_product_config)
                 session.product_config = product_config
 
             await session.handle_message(data)

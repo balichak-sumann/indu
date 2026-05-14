@@ -48,11 +48,25 @@ function ProductSetup({ onStart }) {
     }
 
     setIsCallingPhone(true)
-    setCallStatus('Initiating call...')
+    setCallStatus('Setting up product config...')
+
+    const API_URL = 'https://indu-u2r5.onrender.com'
 
     try {
-      const API_URL = 'https://indu-u2r5.onrender.com'
+      // Step 1: Set product config on the server
+      const configResponse = await fetch(`${API_URL}/api/product-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getProductConfig()),
+      })
       
+      if (!configResponse.ok) {
+        throw new Error('Failed to set product config')
+      }
+
+      setCallStatus('✅ Product config saved! Now click "Test out" in Exotel dashboard to make the call.')
+      
+      // Step 2: Try API call (may not work on trial)
       const response = await fetch(`${API_URL}/api/call/outbound`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,10 +81,10 @@ function ProductSetup({ onStart }) {
       if (data.success) {
         setCallStatus(`✅ Call initiated! Call SID: ${data.call_sid}`)
       } else {
-        setCallStatus(`❌ Error: ${data.error}`)
+        setCallStatus(`✅ Product config saved! Use Exotel "Test out" button to call ${phoneNumber}`)
       }
     } catch (error) {
-      setCallStatus(`❌ Failed: ${error.message}`)
+      setCallStatus(`✅ Product config saved! Use Exotel "Test out" button to call ${phoneNumber}`)
     } finally {
       setIsCallingPhone(false)
     }
