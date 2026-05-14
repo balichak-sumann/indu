@@ -532,7 +532,7 @@ class ExotelCallSession:
             if not clean_text:
                 clean_text = text.strip()
 
-            url = f"{settings.SARVAM_API_BASE_URL}/text-to-speech"
+            url = f"{settings.SARVAM_API_BASE_URL}/text-to-speech/stream"
             headers = {
                 "api-subscription-key": settings.SARVAM_API_KEY,
                 "Content-Type": "application/json",
@@ -543,9 +543,45 @@ class ExotelCallSession:
                 "speaker": "priya",
                 "model": "bulbul:v3",
                 "pace": 1.0,
-                "speech_sample_rate": str(self.sample_rate),
+                "output_audio_codec": "wav",
+                "speech_sample_rate": self.sample_rate,
             }
 
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        wav_bytes = await response.read()
+                        if wav_bytes[:4] == b'RIFF' and len(wav_bytes) > 44:
+                            return wav_bytes[44:]
+                        return wav_bytes
+                    else:
+                        error = await response.text()
+                        logger.warning(f"TTS stream error ({response.status}): {error[:100]}")
+                        # Fallback to REST endpoint
+                        return await self._tts_rest_fallback(clean_text, target_lang)
+            return None
+        except Exception as e:
+            logger.error(f"TTS PCM failed: {str(e)}")
+            return None
+
+    async def _tts_rest_fallback(self, text: str, target_lang: str) -> Optional[bytes]:
+        """Fallback REST TTS"""
+        try:
+            from app.config import get_settings
+            settings = get_settings()
+            url = f"{settings.SARVAM_API_BASE_URL}/text-to-speech"
+            headers = {
+                "api-subscription-key": settings.SARVAM_API_KEY,
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "text": text[:2500],
+                "target_language_code": target_lang,
+                "speaker": "priya",
+                "model": "bulbul:v3",
+                "pace": 1.0,
+                "speech_sample_rate": str(self.sample_rate),
+            }
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status == 200:
@@ -553,16 +589,12 @@ class ExotelCallSession:
                         audios = result.get("audios", [])
                         if audios:
                             wav_bytes = base64.b64decode(audios[0])
-                            # Skip WAV header (44 bytes) to get raw PCM
                             if wav_bytes[:4] == b'RIFF':
                                 return wav_bytes[44:]
                             return wav_bytes
-                    else:
-                        error = await response.text()
-                        logger.error(f"TTS PCM error ({response.status}): {error[:100]}")
             return None
         except Exception as e:
-            logger.error(f"TTS PCM failed: {str(e)}")
+            logger.error(f"TTS REST fallback failed: {str(e)}")
             return None
 
     def _pcm_to_wav(self, pcm_data: bytes, sample_rate: int) -> bytes:
