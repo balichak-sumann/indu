@@ -150,7 +150,7 @@ class ExotelCallSession:
             if rms > self.vad_threshold * 2 and self._ai_speaking_frames > self.interrupt_min_frames:
                 # Strong speech detected during AI playback - interrupt
                 self.speech_frames += 1
-                if self.speech_frames >= 5:  # Need sustained speech to interrupt
+                if self.speech_frames >= 3:  # Need 3 frames (~100ms) to interrupt
                     await self._interrupt_ai()
                     self.speech_frames = 0
             else:
@@ -442,8 +442,8 @@ class ExotelCallSession:
     async def _send_audio_to_caller(self, pcm_data: bytes):
         """Send PCM audio to Exotel in chunks"""
         # Exotel requires: minimum 3200 bytes (100ms), max 100k, multiples of 320
-        # Using 6400 bytes = 200ms chunks at 8kHz 16-bit mono
-        chunk_size = 6400
+        # Using 3200 bytes = 100ms chunks (minimum allowed - fastest interrupt response)
+        chunk_size = 3200
         self._sequence_number += 1
         self._ai_speaking_frames = 0
 
@@ -464,8 +464,8 @@ class ExotelCallSession:
                     "payload": payload,
                 },
             })
-            # Delay proportional to chunk duration (~200ms of audio per chunk)
-            await asyncio.sleep(0.15)
+            # Delay proportional to chunk duration (~100ms of audio per chunk)
+            await asyncio.sleep(0.08)
 
         # Set cooldown after AI finishes speaking
         if not self.interrupted:
