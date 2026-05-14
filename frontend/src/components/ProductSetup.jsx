@@ -51,7 +51,11 @@ function ProductSetup({ onStart }) {
     setCallStatus('Initiating call...')
 
     try {
-      const response = await fetch('http://localhost:8000/api/call/outbound', {
+      const API_URL = window.location.hostname === 'localhost' 
+        ? 'http://localhost:8000' 
+        : 'https://indu-u2r5.onrender.com'
+      
+      const response = await fetch(`${API_URL}/api/call/outbound`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -48,7 +48,7 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],  # Allow all origins for now (frontend can be anywhere)
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -136,15 +136,24 @@ _call_configs = {}
 
 
 @app.get("/api/exotel/ws-url", tags=["Telephony"])
-async def get_exotel_ws_url(config_id: str = "default", language: str = "en"):
+async def get_exotel_ws_url(config_id: str = "default", language: str = "en", CallFrom: str = ""):
     """
     Dynamic WebSocket URL endpoint for Exotel Voicebot applet.
     Exotel hits this HTTPS URL first, and we return the WSS endpoint.
-    This bypasses ngrok's free-tier browser warning.
     """
-    ws_base = settings.EXOTEL_WS_URL or "wss://goose-quality-rationally.ngrok-free.app/ws/exotel/voice"
-    ws_url = f"{ws_base}?config_id={config_id}&language={language}"
-    logger.info(f"📞 Exotel requesting WS URL: {ws_url}")
+    ws_base = settings.EXOTEL_WS_URL or "wss://indu-u2r5.onrender.com/ws/exotel/voice"
+    
+    # Look up config by phone number (CallFrom is the customer's number)
+    actual_config_id = "default"
+    if CallFrom:
+        # Find config_id by phone number
+        for cid, cfg in _call_configs.items():
+            if CallFrom.endswith(cfg.get("_phone", "")):
+                actual_config_id = cid
+                break
+    
+    ws_url = f"{ws_base}?config_id={actual_config_id}&language={language}"
+    logger.info(f"📞 Exotel requesting WS URL: {ws_url} (from: {CallFrom})")
     return {"url": ws_url}
 
 
@@ -208,7 +217,7 @@ async def make_outbound_call(request_data: dict):
     # Store product config for this call
     import uuid
     config_id = str(uuid.uuid4())[:8]
-    _call_configs[config_id] = {**product_config, "language": language}
+    _call_configs[config_id] = {**product_config, "language": language, "_phone": phone_number}
 
     # Exotel API credentials
     exotel_sid = settings.EXOTEL_SID
