@@ -161,9 +161,9 @@ async def set_product_config(config: dict):
         language = pc.get("language", "en")
         lang_instruction = ""
         if language == "te":
-            lang_instruction = "Respond in Telugu-English mix (Tenglish). "
+            lang_instruction = "Speak in simple English but add Telugu greetings like 'Namaskaram', 'Bagunnara'. Keep technical terms in English. "
         elif language == "hi":
-            lang_instruction = "Respond in Hindi-English mix (Hinglish). "
+            lang_instruction = "Speak in simple English but add Hindi greetings like 'Namaste', 'Aap kaise hain'. Keep technical terms in English. "
         
         opening_prompt = (
             f"You are Priya calling a customer to sell {product_name} from {company_name}. "
