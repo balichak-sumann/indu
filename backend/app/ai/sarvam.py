@@ -168,8 +168,7 @@ class SarvamLLM:
 
     def _strip_think_tags(self, text: str) -> str:
         """
-        Handle <think>...</think> blocks from model output.
-        Model often puts actual response inside think tags.
+        Aggressively clean model output.
         """
         import re
         
@@ -180,31 +179,49 @@ class SarvamLLM:
         
         # If cleaned result is substantial (>20 chars), use it
         if len(cleaned) > 20:
-            return cleaned
+            text = cleaned
+        else:
+            # Result too short - look inside think tags for the actual response
+            think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
+            if think_match:
+                think_content = think_match.group(1)
+                quoted = re.findall(r'"([^"]{10,})"', think_content)
+                if quoted:
+                    text = max(quoted, key=len)
+                else:
+                    lines = [l.strip() for l in think_content.split('\n') if len(l.strip()) > 15]
+                    if lines:
+                        text = lines[-1]
+                    else:
+                        text = cleaned if cleaned else "Could you say that again?"
+            else:
+                text = cleaned if cleaned else "Could you say that again?"
         
-        # Result too short - look inside think tags for the actual response
-        think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
-        if think_match:
-            think_content = think_match.group(1)
-            
-            # Look for quoted text (model often puts response in quotes)
-            quoted = re.findall(r'"([^"]{10,})"', think_content)
-            if quoted:
-                # Return the longest quoted text
-                return max(quoted, key=len)
-            
-            # Look for text after common patterns like "Response:" or "Answer:"
-            response_match = re.search(r'(?:response|answer|reply|output)[:\s]*(.{15,}?)(?:\n|$)', think_content, re.IGNORECASE)
-            if response_match:
-                return response_match.group(1).strip()
-            
-            # Last resort: take the last substantial line from think content
-            lines = [l.strip() for l in think_content.split('\n') if len(l.strip()) > 15]
-            if lines:
-                return lines[-1]
+        # POST-PROCESSING: Remove useless meta-phrases
+        meta_starts = [
+            "Let me rephrase", "Let me explain", "Let me tell you",
+            "Let me clarify", "Let me break", "Let me put",
+            "Oh sorry", "I apologize", "Sorry about that",
+        ]
+        for phrase in meta_starts:
+            if text.startswith(phrase):
+                # Remove the meta-phrase and keep the rest
+                after = text[len(phrase):].lstrip('.,!: ')
+                if len(after) > 15:
+                    text = after
+                    break
         
-        # If we still have something (even short), return it rather than nothing
-        return cleaned if cleaned else "Could you say that again?"
+        # Limit to ~150 chars to keep TTS fast (cut at sentence boundary)
+        if len(text) > 150:
+            # Find last sentence end before 150 chars
+            for i in range(150, 50, -1):
+                if text[i] in '.!?।':
+                    text = text[:i+1]
+                    break
+            else:
+                text = text[:150]
+        
+        return text.strip()
 
     async def _generate_non_streaming(self, messages: list) -> str:
         """Non-streaming LLM call"""

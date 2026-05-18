@@ -377,6 +377,10 @@ class ExotelCallSession:
             logger.info(f"🤖 LLM response in {llm_time:.1f}s: '{full_response[:50]}...'")
 
             if full_response and not self.interrupted:
+                # Detect echo (LLM repeating user's input)
+                if transcript and full_response.strip().startswith(transcript[:20]):
+                    full_response = "Could you tell me more about what you need?"
+                
                 # Final safety: strip any remaining <think> tags before TTS
                 import re
                 tts_text = re.sub(r'<think>.*?</think>', '', full_response, flags=re.DOTALL)
