@@ -94,9 +94,9 @@ class SarvamLLM:
 
     def __init__(self):
         self.api_key = settings.SARVAM_API_KEY
-        self.model = "sarvam-m"
+        self.model = "sarvam-30b"
         self.base_url = settings.SARVAM_API_BASE_URL
-        logger.info(f"SarvamLLM initialized with model: {self.model} (fast, sentence-pipelined)")
+        logger.info(f"SarvamLLM initialized with model: {self.model}")
 
     async def generate_response_streaming(
         self, prompt: str, context: list = None, personality: str = "assistant",
@@ -236,7 +236,8 @@ class SarvamLLM:
             "model": self.model,
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 2048,
+            "max_tokens": 4096,
+            "reasoning_effort": "low",
         }
 
         try:
