@@ -69,7 +69,7 @@ class ExotelCallSession:
         self.vad_threshold = 500  # Higher RMS threshold for phone audio noise floor
         self.silence_duration_frames = 25  # ~800ms of silence before ending speech (faster response)
         self.min_speech_frames = 18  # ~600ms minimum speech (catches short words like "yes", "no")
-        self.interrupt_min_frames = 50  # AI must be speaking 50+ frames (~1.6s) before interrupt allowed
+        self.interrupt_min_frames = 20  # AI must be speaking 20+ frames (~640ms) before interrupt allowed
         self._ai_speaking_frames = 0  # Track how long AI has been speaking
         self._cooldown_frames = 0  # Cooldown after AI stops speaking
         self._cooldown_duration = 25  # ~800ms cooldown after AI audio ends
@@ -186,7 +186,7 @@ class ExotelCallSession:
             # Don't process caller audio while AI is speaking (echo suppression)
             # Only allow interrupt after AI has been speaking long enough
             rms = self._calculate_rms(audio_bytes)
-            if rms > self.vad_threshold * 3 and self._ai_speaking_frames > self.interrupt_min_frames:
+            if rms > self.vad_threshold * 2 and self._ai_speaking_frames > self.interrupt_min_frames:
                 # Strong speech detected during AI playback - interrupt
                 self.speech_frames += 1
                 if self.speech_frames >= 3:  # Need 3 frames (~100ms) to interrupt
