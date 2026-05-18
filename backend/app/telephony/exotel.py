@@ -104,8 +104,9 @@ class ExotelCallSession:
                 name = data.get("mark", {}).get("name", "")
                 if name == "ai_done":
                     self.is_ai_speaking = False
-                    # Start silence timer - if user doesn't respond in 8s, AI follows up
-                    self._start_silence_timer()
+                    # Only start silence timer if we've had at least one user interaction
+                    if len(self.conversation_history) > 1:
+                        self._start_silence_timer()
         except Exception as e:
             logger.error(f"Error handling event '{event}': {str(e)}", exc_info=True)
 
@@ -446,6 +447,10 @@ class ExotelCallSession:
                 "stream_sid": self.stream_sid,
                 "mark": {"name": "ai_done"},
             })
+            # Auto-continue with product pitch after greeting (no waiting)
+            await asyncio.sleep(1.0)
+            if self.is_active and not self.interrupted:
+                self._start_silence_timer()
             return
         # Default greeting if no product config
         if not self.product_config or not self.product_config.get("productName"):

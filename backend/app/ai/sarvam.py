@@ -211,15 +211,14 @@ class SarvamLLM:
                     text = after
                     break
         
-        # Limit to ~150 chars to keep TTS fast (cut at sentence boundary)
-        if len(text) > 150:
-            # Find last sentence end before 150 chars
-            for i in range(150, 50, -1):
+        # Limit to ~300 chars to keep TTS reasonable but not too short
+        if len(text) > 300:
+            for i in range(300, 100, -1):
                 if text[i] in '.!?।':
                     text = text[:i+1]
                     break
             else:
-                text = text[:150]
+                text = text[:300]
         
         return text.strip()
 
