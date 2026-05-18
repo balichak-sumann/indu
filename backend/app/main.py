@@ -158,15 +158,23 @@ async def set_product_config(config: dict):
         product_name = pc.get("productName", "our product")
         company_name = pc.get("companyName", "our company")
         
+        language = pc.get("language", "en")
+        lang_instruction = ""
+        if language == "te":
+            lang_instruction = "Respond in Telugu-English mix (Tenglish). "
+        elif language == "hi":
+            lang_instruction = "Respond in Hindi-English mix (Hinglish). "
+        
         opening_prompt = (
             f"You are Priya calling a customer to sell {product_name} from {company_name}. "
             f"Product: {pc.get('productDescription', '')}. "
+            f"{lang_instruction}"
             f"Say hi, introduce yourself, and immediately tell them ONE exciting benefit of the product. "
             f"DO NOT ask how you can help. DO NOT use placeholders. Be direct and enthusiastic. 2 sentences max."
         )
         
         greeting_text = await llm.generate_response(
-            prompt=opening_prompt, context=[], personality="sales", language="en"
+            prompt=opening_prompt, context=[], personality="sales", language=language
         )
         
         if greeting_text:
@@ -177,7 +185,7 @@ async def set_product_config(config: dict):
             headers = {"api-subscription-key": settings_local.SARVAM_API_KEY, "Content-Type": "application/json"}
             payload = {
                 "text": greeting_text[:2500],
-                "target_language_code": "en-IN",
+                "target_language_code": {"te": "te-IN", "hi": "hi-IN"}.get(language, "en-IN"),
                 "speaker": "suhani",
                 "model": "bulbul:v3",
                 "pace": 1.0,
