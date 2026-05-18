@@ -233,8 +233,8 @@ class SarvamLLM:
                         # Strip <think>...</think> tags (model leaks reasoning)
                         content = self._strip_think_tags(content)
                         content = content.strip()
-                        if not content:
-                            logger.warning(f"LLM returned empty content. Full response: {result}")
+                        if not content or len(content) < 10:
+                            logger.warning(f"LLM returned empty/short content. Full response: {result}")
                             content = "Could you say that again? I didn't quite catch that."
                         logger.info(f"LLM response ({result['usage']['completion_tokens']} tokens): '{content[:80]}...'")
                         return content
