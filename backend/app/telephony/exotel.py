@@ -114,7 +114,7 @@ class ExotelCallSession:
         if hasattr(self, '_silence_timer') and self._silence_timer:
             self._silence_timer.cancel()
         self._silence_timer = asyncio.get_event_loop().call_later(
-            8.0, lambda: asyncio.create_task(self._handle_user_silence())
+            3.0, lambda: asyncio.create_task(self._handle_user_silence())
         )
 
     async def _handle_user_silence(self):
@@ -126,7 +126,7 @@ class ExotelCallSession:
         
         # Generate a follow-up
         follow_up = await llm.generate_response(
-            prompt="The customer has been silent. Follow up naturally - ask if they have questions or if they're still there. Keep it short.",
+            prompt="The customer hasn't responded yet. Continue pitching the product naturally - add another benefit or ask an engaging question. Don't ask if they're there.",
             context=self.conversation_history[-4:],
             personality="sales",
             language=self.language,
