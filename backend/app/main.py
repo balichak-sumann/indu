@@ -166,11 +166,11 @@ async def set_product_config(config: dict):
             lang_instruction = "Speak FULLY in Hindi (Devanagari script). Use proper Hindi grammar. Technical product terms can stay in English. "
         
         opening_prompt = (
-            f"You are Priya calling a customer to sell {product_name} from {company_name}. "
-            f"Product: {pc.get('productDescription', '')}. "
+            f"You are Priya calling a customer on behalf of {company_name}. "
+            f"Product: {product_name} - {pc.get('productDescription', '')}. "
             f"{lang_instruction}"
-            f"Say hi, introduce yourself, and tell them ONE exciting benefit of the product. "
-            f"DO NOT ask questions. DO NOT use placeholders. Be direct. MAX 2 sentences."
+            f"First greet them, then say WHY you are calling (e.g. 'I'm calling because we have something that can help your business'). "
+            f"Then mention ONE benefit. DO NOT ask questions. MAX 2-3 sentences total."
         )
         
         greeting_text = await llm.generate_response(
