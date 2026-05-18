@@ -169,42 +169,42 @@ class SarvamLLM:
     def _strip_think_tags(self, text: str) -> str:
         """
         Handle <think>...</think> blocks from model output.
-        Sometimes the model puts the actual response inside think tags.
+        Model often puts actual response inside think tags.
         """
         import re
         
         # Strip closed think blocks
         cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-        # Strip unclosed think blocks (ALWAYS - never let <think> reach TTS)
+        # Strip unclosed think blocks
         cleaned = re.sub(r'<think>.*$', '', cleaned, flags=re.DOTALL).strip()
         
-        # If after stripping we have native script content, use it
-        has_native = any(
-            ('\u0900' <= c <= '\u097F') or  # Devanagari
-            ('\u0C00' <= c <= '\u0C7F')     # Telugu
-            for c in cleaned
-        )
-        if has_native and len(cleaned) > 5:
+        # If cleaned result is substantial (>20 chars), use it
+        if len(cleaned) > 20:
             return cleaned
         
-        # If cleaned has only English/transliterated content, check if there's
-        # native script INSIDE the original think tags (model put answer there)
+        # Result too short - look inside think tags for the actual response
         think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
         if think_match:
             think_content = think_match.group(1)
-            # Find quoted native script text
-            quoted = re.findall(r'"([^"]+)"', think_content)
-            for q in quoted:
-                has_native_q = any(
-                    ('\u0900' <= c <= '\u097F') or
-                    ('\u0C00' <= c <= '\u0C7F')
-                    for c in q
-                )
-                if has_native_q and len(q) > 5:
-                    return q
+            
+            # Look for quoted text (model often puts response in quotes)
+            quoted = re.findall(r'"([^"]{10,})"', think_content)
+            if quoted:
+                # Return the longest quoted text
+                return max(quoted, key=len)
+            
+            # Look for text after common patterns like "Response:" or "Answer:"
+            response_match = re.search(r'(?:response|answer|reply|output)[:\s]*(.{15,}?)(?:\n|$)', think_content, re.IGNORECASE)
+            if response_match:
+                return response_match.group(1).strip()
+            
+            # Last resort: take the last substantial line from think content
+            lines = [l.strip() for l in think_content.split('\n') if len(l.strip()) > 15]
+            if lines:
+                return lines[-1]
         
-        # Default: return whatever cleaned content we have
-        return cleaned if cleaned else "I'm sorry, could you please repeat that?"
+        # If we still have something (even short), return it rather than nothing
+        return cleaned if cleaned else "Could you say that again?"
 
     async def _generate_non_streaming(self, messages: list) -> str:
         """Non-streaming LLM call"""
