@@ -160,13 +160,24 @@ async def set_product_config(config: dict):
         
         language = pc.get("language", "en")
         
-        # For non-English, use a hardcoded template (LLM can't reliably generate proper Telugu/Hindi)
-        if language == "te":
-            greeting_text = f"నమస్కారం! నేను Priya, {company_name} నుండి call చేస్తున్నాను. మీ business కి help అయ్యే {product_name} గురించి చెప్పాలని call చేశాను."
-        elif language == "hi":
-            greeting_text = f"नमस्ते! मैं Priya हूँ, {company_name} से call कर रही हूँ. आपके business के लिए {product_name} के बारे में बताना चाहती हूँ."
+        # Hardcoded greetings for Indian languages (LLM can't reliably generate proper grammar)
+        greetings = {
+            "te": f"నమస్కారం! నేను Priya, {company_name} నుండి call చేస్తున్నాను. మీ business కి help అయ్యే {product_name} గురించి చెప్పాలని call చేశాను.",
+            "hi": f"नमस्ते! मैं Priya हूँ, {company_name} से call कर रही हूँ. आपके business के लिए {product_name} के बारे में बताना चाहती हूँ.",
+            "ta": f"வணக்கம்! நான் Priya, {company_name} இருந்து call செய்கிறேன். உங்கள் business-க்கு உதவியாக இருக்கும் {product_name} பற்றி சொல்ல call செய்தேன்.",
+            "kn": f"ನಮಸ್ಕಾರ! ನಾನು Priya, {company_name} ಇಂದ call ಮಾಡುತ್ತಿದ್ದೇನೆ. ನಿಮ್ಮ business-ಗೆ help ಆಗುವ {product_name} ಬಗ್ಗೆ ಹೇಳಲು call ಮಾಡಿದೆ.",
+            "ml": f"നമസ്കാരം! ഞാൻ Priya, {company_name} ൽ നിന്ന് call ചെയ്യുകയാണ്. നിങ്ങളുടെ business-ന് help ആകുന്ന {product_name} നെ കുറിച്ച് പറയാൻ call ചെയ്തു.",
+            "bn": f"নমস্কার! আমি Priya, {company_name} থেকে call করছি. আপনার business-এর জন্য {product_name} সম্পর্কে বলতে call করেছি.",
+            "mr": f"नमस्कार! मी Priya, {company_name} कडून call करत आहे. तुमच्या business साठी {product_name} बद्दल सांगायला call केला.",
+            "gu": f"નમસ્તે! હું Priya, {company_name} તરફથી call કરું છું. તમારા business માટે {product_name} વિશે જણાવવા call કર્યો.",
+            "pa": f"ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ Priya, {company_name} ਤੋਂ call ਕਰ ਰਹੀ ਹਾਂ. ਤੁਹਾਡੇ business ਲਈ {product_name} ਬਾਰੇ ਦੱਸਣ ਲਈ call ਕੀਤਾ.",
+            "od": f"ନମସ୍କାର! ମୁଁ Priya, {company_name} ରୁ call କରୁଛି. ଆପଣଙ୍କ business ପାଇଁ {product_name} ବିଷୟରେ କହିବାକୁ call କଲି.",
+        }
+        
+        if language in greetings:
+            greeting_text = greetings[language]
         else:
-            # English - use LLM
+            # English or unknown - use LLM
             opening_prompt = (
                 f"You are Priya calling a customer on behalf of {company_name}. "
                 f"Product: {product_name} - {pc.get('productDescription', '')}. "

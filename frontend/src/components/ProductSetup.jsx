@@ -185,8 +185,15 @@ function ProductSetup({ onStart }) {
                 <option value="en">English</option>
                 <option value="hi">Hindi</option>
                 <option value="te">Telugu</option>
+                <option value="ta">Tamil</option>
+                <option value="kn">Kannada</option>
+                <option value="ml">Malayalam</option>
+                <option value="bn">Bengali</option>
+                <option value="mr">Marathi</option>
+                <option value="gu">Gujarati</option>
+                <option value="pa">Punjabi</option>
+                <option value="od">Odia</option>
                 <option value="hinglish">Hinglish</option>
-                <option value="auto">Auto-detect</option>
               </select>
             </div>
             <div>
