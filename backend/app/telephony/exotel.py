@@ -126,7 +126,7 @@ class ExotelCallSession:
         
         # Generate a follow-up
         follow_up = await llm.generate_response(
-            prompt="The customer hasn't responded yet. Continue pitching the product naturally - add another benefit or ask an engaging question. Don't ask if they're there.",
+            prompt="Customer is silent. Tell them another benefit of the product. DO NOT ask questions. Just state a fact or benefit. 1 sentence only.",
             context=self.conversation_history[-4:],
             personality="sales",
             language=self.language,
@@ -343,9 +343,9 @@ class ExotelCallSession:
             language_instruction = ""
             locked = getattr(self, '_locked_language', None)
             if locked == "te-IN":
-                language_instruction = "\n[Speak in simple English but use Telugu greetings and casual words. Keep product terms in English. Sound natural like an Indian sales call.]"
+                language_instruction = "\n[Speak FULLY in Telugu script (తెలుగు). Technical terms can be English. DO NOT ask questions - just pitch/answer. 1-2 sentences max.]"
             elif locked == "hi-IN":
-                language_instruction = "\n[Speak in simple English but use Hindi greetings and casual words. Keep product terms in English. Sound natural like an Indian sales call.]"
+                language_instruction = "\n[Speak FULLY in Hindi Devanagari (हिंदी). Technical terms can be English. DO NOT ask questions - just pitch/answer. 1-2 sentences max.]"
 
             # Build product context - make it a strong instruction
             product_context = ""

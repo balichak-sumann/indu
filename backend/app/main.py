@@ -161,16 +161,16 @@ async def set_product_config(config: dict):
         language = pc.get("language", "en")
         lang_instruction = ""
         if language == "te":
-            lang_instruction = "Speak in simple English but add Telugu greetings like 'Namaskaram', 'Bagunnara'. Keep technical terms in English. "
+            lang_instruction = "Speak FULLY in Telugu (తెలుగు script). Use proper Telugu grammar. Technical product terms can stay in English. "
         elif language == "hi":
-            lang_instruction = "Speak in simple English but add Hindi greetings like 'Namaste', 'Aap kaise hain'. Keep technical terms in English. "
+            lang_instruction = "Speak FULLY in Hindi (Devanagari script). Use proper Hindi grammar. Technical product terms can stay in English. "
         
         opening_prompt = (
             f"You are Priya calling a customer to sell {product_name} from {company_name}. "
             f"Product: {pc.get('productDescription', '')}. "
             f"{lang_instruction}"
-            f"Say hi, introduce yourself, and immediately tell them ONE exciting benefit of the product. "
-            f"DO NOT ask how you can help. DO NOT use placeholders. Be direct and enthusiastic. 2 sentences max."
+            f"Say hi, introduce yourself, and tell them ONE exciting benefit of the product. "
+            f"DO NOT ask questions. DO NOT use placeholders. Be direct. MAX 2 sentences."
         )
         
         greeting_text = await llm.generate_response(

@@ -109,7 +109,7 @@ class SarvamLLM:
         from app.prompts.templates import get_system_prompt
 
         system_prompt = get_system_prompt(personality)
-        system_prompt += "\nCRITICAL RULES FOR THIS LIVE PHONE CALL:\n1. Respond in ONLY 1-2 short sentences\n2. If user switches to Hindi/Telugu, respond in HINGLISH style (mix of that language + English, like how Indians naturally talk on phone). NEVER use pure native script.\n3. Be warm and natural like a real person.\n4. Always steer conversation toward the product you're selling."
+        system_prompt += "\nCRITICAL RULES FOR THIS LIVE PHONE CALL:\n1. Respond in ONLY 1-2 short sentences\n2. If user switches to Hindi/Telugu, respond FULLY in that language (native script). Technical terms can stay English.\n3. DO NOT ask questions unless customer asks you something first. Just pitch benefits.\n4. Always steer conversation toward the product you're selling.\n5. Be warm and natural."
 
         # Build messages array
         messages = [{"role": "system", "content": system_prompt}]
