@@ -159,9 +159,10 @@ async def set_product_config(config: dict):
         company_name = pc.get("companyName", "our company")
         
         opening_prompt = (
-            f"You are Priya calling a customer to introduce {product_name} from {company_name}. "
-            f"Say a warm greeting with your name and briefly mention the product. "
-            f"DO NOT use placeholders like [Name]. Just greet naturally. Keep it to 2 sentences max."
+            f"You are Priya calling a customer to sell {product_name} from {company_name}. "
+            f"Product: {pc.get('productDescription', '')}. "
+            f"Say hi, introduce yourself, and immediately tell them ONE exciting benefit of the product. "
+            f"DO NOT ask how you can help. DO NOT use placeholders. Be direct and enthusiastic. 2 sentences max."
         )
         
         greeting_text = await llm.generate_response(
