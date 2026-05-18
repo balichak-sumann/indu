@@ -237,7 +237,6 @@ class SarvamLLM:
             "messages": messages,
             "temperature": 0.7,
             "max_tokens": 4096,
-            "reasoning_effort": "low",
         }
 
         try:
