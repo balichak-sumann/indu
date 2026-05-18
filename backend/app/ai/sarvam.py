@@ -94,7 +94,7 @@ class SarvamLLM:
 
     def __init__(self):
         self.api_key = settings.SARVAM_API_KEY
-        self.model = "sarvam-30b"
+        self.model = "sarvam-m"
         self.base_url = settings.SARVAM_API_BASE_URL
         logger.info(f"SarvamLLM initialized with model: {self.model}")
 
@@ -236,7 +236,7 @@ class SarvamLLM:
             "model": self.model,
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 4096,
+            "max_tokens": 2048,
         }
 
         try:

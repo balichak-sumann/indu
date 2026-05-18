@@ -159,23 +159,23 @@ async def set_product_config(config: dict):
         company_name = pc.get("companyName", "our company")
         
         language = pc.get("language", "en")
-        lang_instruction = ""
+        
+        # For non-English, use a hardcoded template (LLM can't reliably generate proper Telugu/Hindi)
         if language == "te":
-            lang_instruction = "మీరు పూర్తిగా తెలుగులో మాట్లాడాలి. English వాడకూడదు (product names తప్ప). "
+            greeting_text = f"నమస్కారం! నేను Priya, {company_name} నుండి call చేస్తున్నాను. మీ business కి help అయ్యే {product_name} గురించి చెప్పాలని call చేశాను."
         elif language == "hi":
-            lang_instruction = "आपको पूरी तरह हिंदी में बोलना है। English मत बोलो (product names छोड़कर)। "
-        
-        opening_prompt = (
-            f"{lang_instruction}"
-            f"You are Priya calling a customer on behalf of {company_name}. "
-            f"Product: {product_name} - {pc.get('productDescription', '')}. "
-            f"First greet them, then say WHY you are calling, then mention ONE benefit. "
-            f"DO NOT ask questions. MAX 3 sentences total."
-        )
-        
-        greeting_text = await llm.generate_response(
-            prompt=opening_prompt, context=[], personality="sales", language=language
-        )
+            greeting_text = f"नमस्ते! मैं Priya हूँ, {company_name} से call कर रही हूँ. आपके business के लिए {product_name} के बारे में बताना चाहती हूँ."
+        else:
+            # English - use LLM
+            opening_prompt = (
+                f"You are Priya calling a customer on behalf of {company_name}. "
+                f"Product: {product_name} - {pc.get('productDescription', '')}. "
+                f"First greet them, say why you're calling, then mention ONE benefit. "
+                f"DO NOT ask questions. MAX 2-3 sentences."
+            )
+            greeting_text = await llm.generate_response(
+                prompt=opening_prompt, context=[], personality="sales", language=language
+            )
         
         if greeting_text:
             # Pre-generate TTS audio
