@@ -122,7 +122,7 @@ class ExotelCallSession:
         if not self.is_active or self.is_ai_speaking or self.is_speech_active:
             return
         
-        logger.info("🤫 User silent for 8s - AI following up")
+        logger.info("🤫 User silent for 3s - AI following up")
         
         # Generate a follow-up
         follow_up = await llm.generate_response(
@@ -367,7 +367,7 @@ class ExotelCallSession:
 
             llm_start = time.time()
             full_response = await llm.generate_response_streaming(
-                prompt=transcript + product_context + language_instruction,
+                prompt=language_instruction + "\n" + transcript + product_context,
                 context=self.conversation_history[:-1],
                 personality="sales",
                 language=self.language,
