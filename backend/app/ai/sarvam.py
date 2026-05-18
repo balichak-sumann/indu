@@ -241,7 +241,7 @@ class SarvamLLM:
         }
 
         try:
-            timeout = aiohttp.ClientTimeout(total=15)
+            timeout = aiohttp.ClientTimeout(total=45)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status == 200:
@@ -322,7 +322,7 @@ class SarvamTTS:
         }
 
         try:
-            timeout = aiohttp.ClientTimeout(total=15)
+            timeout = aiohttp.ClientTimeout(total=45)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(url, headers=headers, json=payload) as response:
                     if response.status == 200:
@@ -372,3 +372,4 @@ class SarvamTTS:
 stt = SarvamSTT()
 llm = SarvamLLM()
 tts = SarvamTTS()
+
